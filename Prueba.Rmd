@@ -1,0 +1,142 @@
+---
+title: "Análisis de datos 'Berlin Airbnb'"
+subtitle: "con Python y R"
+author: "Hernán David Torres"
+institute: "RStudio, Inc."
+date: "2016/12/12 (updated: `r Sys.Date()`)"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+
+---
+class: center, middle
+
+# Análisis de texto
+
+---
+
+# Lectura de datos
+
+Se realiza la lectura de datos para el análisis de texto usando Python
+
+```{r eval=FALSE, include=FALSE}
+library(keras)
+install_keras()
+```
+
+```{r include=FALSE}
+library(reticulate)
+# py_install("langdetect")
+```
+
+```{python echo=TRUE}
+import pandas as pd
+import numpy as np
+import langdetect as lngdet
+```
+```{python}
+dataset_reviews = pd.read_csv('data/reviews_summary.csv')
+dataset_reviews.head(1)
+```
+
+
+```{python}
+dataset_listings = pd.read_csv('data/listings.csv')
+dataset_listings.head(1)
+```
+
+
+---
+
+# Primeros análisis
+
+Se junta la información de las dos tablas para ampliar el contexto de los comentarios.
+
+```{python echo=TRUE}
+data_merged = pd.merge(dataset_reviews, dataset_listings[['host_id','id','neighbourhood_group','latitude','longitude', 'number_of_reviews', 'price']], left_on='listing_id', right_on='id', how='left')
+data_merged.drop(['id_y'], axis=1, inplace=True)
+```
+
+De esa forma analizamos cuales son las locaciones más comentadas.
+
+```{python}
+count_per_host = pd.DataFrame(data_merged.groupby('host_id')['listing_id', 'price'].nunique()) # Agrupamos
+count_per_host.sort_values(by=['listing_id'], ascending=False, inplace=True)
+count_per_host.head(5) # Top5
+
+```
+ 
+---
+
+# Otros análisis
+
+Averguamos las localidades de Berlín con más locaciones
+```{python echo=FALSE}
+price_max = data_merged[data_merged['price'] == data_merged.groupby('neighbourhood_group')['price'].transform('max')]
+count_per_neighbourhood = pd.DataFrame(data_merged.groupby('neighbourhood_group')['listing_id', 'price'].nunique())
+count_per_neighbourhood.sort_values(by=['listing_id'], ascending=False, inplace=True)
+count_per_neighbourhood.head()
+```
+
+Por otro lado, averiguamos las locaciones que llegan a los precios más altos.
+
+```{python echo=FALSE}
+price_max = price_max[['neighbourhood_group', 'price']].drop_duplicates()
+price_max.sort_values(by=['price'], ascending=False, inplace=True)
+price_max.head(5)
+```
+
+---
+# Análisis de lenguaje
+
+```{python eval=FALSE, include=TRUE}
+from langdetect import detect
+```
+
+```{python eval=FALSE, include=FALSE}
+def language_detection(text):
+    try:
+        return detect(text)
+    except:
+        return None
+        
+data_merged['language'] = data_merged['comments'].apply(language_detection)
+
+
+```
+
+```{python eval=FALSE, include=FALSE}
+# visualizing the comments' languages b) neat and clean
+ax = data_merged.language.value_counts().head(6).plot(kind='barh', figsize=(9,5), color="lightcoral", 
+                                             fontsize=12);
+
+ax.set_title("\nWhat are the most frequent languages comments are written in?\n", 
+             fontsize=12, fontweight='bold')
+ax.set_xlabel(" Total Number of Comments", fontsize=10)
+ax.set_yticklabels(['English', 'German', 'French', 'Spanish', 'Italian', 'Dutch'])
+
+# create a list to collect the plt.patches data
+totals = []
+# find the ind. values and append to list
+for i in ax.patches:
+    totals.append(i.get_width())
+# get total
+total = sum(totals)
+
+# set individual bar labels using above list
+for i in ax.patches:
+    ax.text(x=i.get_width(), y=i.get_y()+.35, 
+            s=str(round((i.get_width()/total)*100, 2))+'%', 
+            fontsize=10, color='black')
+
+# invert for largest on top 
+ax.invert_yaxis()
+```
+
+ 
+
+---
